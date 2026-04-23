@@ -1,8 +1,11 @@
 {
-  "name": "Strength Calculator",
-  "short_name": "StrengthApp",
+  "name": "Strength Calculator - 1RM & RPE",
+  "short_name": "StrengthCalc",
+  "description": "A powerful strength training calculator for estimating 1RM, RPE-based loads, and generating training sets.",
   "start_url": ".",
   "display": "standalone",
+  "orientation": "portrait",
+  "id": "/?source=pwa",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
