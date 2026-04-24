@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Strength Calculator</title>
+<title>Strength Calculator - 1RM & RPE</title>
 
 <style>
 body { font-family: 'Segoe UI', Tahoma, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:20px; }
@@ -33,10 +33,18 @@ th { opacity:0.7; font-size:13px; }
 <body>
 
 <div class="container">
-<h1>Strength Calculator</h1>
+<h1>Strength Calculator - 1RM & RPE</h1>
 <div class="card">
 <h2>1RM Calculator</h2>
 
+<div style="margin-bottom:15px;">
+  <label>Units:</label>
+  <select id="unitToggle">
+    <option value="lb">Pounds (lb)</option>
+    <option value="kg">Kilograms (kg)</option>
+  </select>
+</div>
+  
 <div class="section-title">Reps Method</div>
 <div class="row">
 <input type="number" id="weight" placeholder="Weight">
@@ -68,14 +76,35 @@ th { opacity:0.7; font-size:13px; }
 </div>
 
 <script>
-// ✅ SAFE SERVICE WORKER REGISTRATION (fixes your error)
+let currentUnit = "lb";
+
+function convertToLbs(value) {
+    return currentUnit === "kg" ? value * 2.20462 : value;
+}
+
+function convertFromLbs(value) {
+    return currentUnit === "kg" ? value / 2.20462 : value;
+}
+
+function roundWeight(value) {
+    return currentUnit === "kg"
+        ? Math.round(value / 2.5) * 2.5
+        : Math.round(value / 5) * 5;
+}
+
+function convertInputValue(val, fromUnit, toUnit) {
+    if (!val || isNaN(val)) return val;
+    if (fromUnit === toUnit) return val;
+    return fromUnit === "lb"
+        ? val / 2.20462
+        : val * 2.20462;
+}
+
 if ('serviceWorker' in navigator) {
   if (location.protocol === 'https:' || location.hostname === 'localhost') {
     navigator.serviceWorker.register('./sw.js').catch(err => {
       console.log('SW registration failed:', err);
     });
-  } else {
-    console.log('Service worker skipped (not https or localhost)');
   }
 }
 
@@ -88,10 +117,12 @@ function getBasePercent(reps) {
 }
 
 function calculate(){
- let w=+weight.value,r=+reps.value;
- let e=w*(1+r/30);
+ let wInput = +weight.value, r = +reps.value;
+ let w = convertToLbs(wInput);
+ let e = w*(1+r/30);
 
- let rw=+rpeWeight.value, rr=+rpeReps.value, rv=+rpeValue.value;
+ let rwInput = +rpeWeight.value, rr = +rpeReps.value, rv = +rpeValue.value;
+ let rw = convertToLbs(rwInput);
  let rpe=null;
 
  if(rw && rr){ 
@@ -104,7 +135,8 @@ function calculate(){
  if(!one || isNaN(one)) return;
 
  global1RM=one;
- oneRMDisplay.innerText=`Estimated 1RM: ${one.toFixed(1)}`;
+ let display1RM = roundWeight(convertFromLbs(one));
+ oneRMDisplay.innerText=`Estimated 1RM: ${display1RM.toFixed(1)} ${currentUnit}`;
  renderChart();
 }
 
@@ -114,7 +146,6 @@ function renderChart(){
  html+=`<div id="selectedLabel" style="opacity:.7">Reps: 5</div>`;
  html+=`<table><tr><th>RPE</th><th>%</th><th>Load</th></tr><tbody id="rpeBody"></tbody></table>`;
 
- // Target Calculator
  html+=`<div class="card"><h2>Target Weight</h2>
  <div class="row">
  <input id="targetReps" placeholder="Reps">
@@ -123,12 +154,18 @@ function renderChart(){
  <button onclick="calcTarget()">Calculate</button>
  <div id="targetOut" class="result-box"></div></div>`;
 
- // Backoff
  html+=`<div class="card"><h2>Back-Off Sets</h2>
  <div class="row">
  <input id="boSets" placeholder="Sets">
  <input id="boReps" placeholder="Reps">
  <select id="boRPE"><option value="8">RPE 8</option><option value="7">7</option><option value="6">6</option></select>
+ </div>
+ <div class="row">
+ <label style="flex:1;">Drop % per set:</label>
+ <select id="boDrop">
+   <option value="2.5">2.5%</option>
+   <option value="5">5%</option>
+ </select>
  </div>
  <button onclick="calcBackoff()">Generate</button>
  <div id="boOut" class="result-box"></div></div>`;
@@ -155,7 +192,8 @@ function renderChart(){
      let base=getBasePercent(selected);
      let p=base-((10-r)*2*0.015);
      let load=global1RM*p;
-     rpeBody.innerHTML+=`<tr><td>${r}</td><td>${(p*100).toFixed(1)}%</td><td>${Math.round(load)}</td></tr>`;
+     let displayLoad = roundWeight(convertFromLbs(load));
+     rpeBody.innerHTML+=`<tr><td>${r}</td><td>${(p*100).toFixed(1)}%</td><td>${displayLoad} ${currentUnit}</td></tr>`;
    });
  }
 
@@ -167,19 +205,43 @@ function calcTarget(){
  let rpe=+targetRPE.value;
  let base=getBasePercent(reps);
  let p=base-((10-rpe)*2*0.015);
- targetOut.innerText=`Target: ${Math.round(global1RM*p)}`;
+ let weight = global1RM*p;
+ let displayWeight = roundWeight(convertFromLbs(weight));
+ targetOut.innerText=`Target: ${displayWeight} ${currentUnit}`;
 }
 
 function calcBackoff(){
  let sets=+boSets.value, reps=+boReps.value, rpe=+boRPE.value;
+ let dropPercent = +boDrop.value / 100;
+
  let base=getBasePercent(reps);
  let p=base-((10-rpe)*2*0.015);
- let w=Math.round(global1RM*p);
+ let baseWeight=global1RM*p;
+
  let html="";
- for(let i=1;i<=sets;i++) html+=`Set ${i}: ${w}<br>`;
+
+ for(let i=1;i<=sets;i++){
+   let adjustedWeight = baseWeight * (1 - dropPercent*(i-1));
+   let displayWeight = roundWeight(convertFromLbs(adjustedWeight));
+   html+=`Set ${i}: ${displayWeight} ${currentUnit}<br>`;
+ }
+
  boOut.innerHTML=html;
 }
 
+let prevUnit = "lb";
+
+document.getElementById("unitToggle").addEventListener("change", function () {
+    const newUnit = this.value;
+
+    weight.value = convertInputValue(+weight.value, prevUnit, newUnit) || "";
+    rpeWeight.value = convertInputValue(+rpeWeight.value, prevUnit, newUnit) || "";
+
+    prevUnit = newUnit;
+    currentUnit = newUnit;
+
+    if (global1RM) calculate();
+});
 </script>
 
 </body>
