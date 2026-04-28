@@ -2,7 +2,7 @@
   "name": "Strength Calculator - 1RM & RPE",
   "short_name": "StrengthCalc",
   "description": "A powerful strength training calculator for estimating 1RM, RPE-based loads, and generating training sets.",
-  "start_url": ".https://luispreza28.github.io/rpe-1rm-calculator/",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
   "id": "/?source=pwa",
