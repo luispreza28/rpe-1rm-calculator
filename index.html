@@ -109,7 +109,9 @@ if ('serviceWorker' in navigator) {
 }
 
 let global1RM = null;
-
+let targetWeight = null;
+let targetMeta = null;
+  
 function getBasePercent(reps) {
  const base={1:1,2:.96,3:.92,4:.89,5:.86,6:.83,7:.8,8:.77,9:.74,10:.71,11:.68,12:.65};
  if(base[reps]) return base[reps];
@@ -147,13 +149,38 @@ function renderChart(){
  html+=`<div id="selectedLabel" style="opacity:.7">Reps: 5</div>`;
  html+=`<table><tr><th>RPE</th><th>%</th><th>Load</th></tr><tbody id="rpeBody"></tbody></table>`;
 
- html+=`<div class="card"><h2>Target Weight</h2>
- <div class="row">
- <input id="targetReps" placeholder="Reps">
- <select id="targetRPE"><option value="9">RPE 9</option><option value="8">8</option><option value="7">7</option></select>
- </div>
- <button onclick="calcTarget()">Calculate</button>
- <div id="targetOut" class="result-box"></div></div>`;
+html+=`<div class="card">
+  <h2>Target Weight</h2>
+
+  <div class="section-title">Calculation Mode</div>
+  <div class="row">
+    <select id="targetMode" onchange="toggleTargetMode()">
+      <option value="rpe">RPE</option>
+      <option value="percent">Percentage</option>
+    </select>
+  </div>
+
+  <div class="row" style="margin-top:10px;">
+    <input id="targetReps" type="number" placeholder="Reps">
+
+    <div id="targetModeInput" style="flex:1; display:flex;">
+      <select id="targetRPE" style="width:100%;">
+        <option value="10">RPE 10</option>
+        <option value="9.5">9.5</option>
+        <option value="9">9</option>
+        <option value="8.5">8.5</option>
+        <option value="8">8</option>
+        <option value="7.5">7.5</option>
+        <option value="7">7</option>
+        <option value="6.5">6.5</option>
+        <option value="6">6</option>
+      </select>
+    </div>
+  </div>
+
+  <button onclick="calcTarget()">Calculate</button>
+  <div id="targetOut" class="result-box"></div>
+</div>`;
 
  html+=`<div class="card"><h2>Back-Off Sets</h2>
  <div class="row">
@@ -201,33 +228,138 @@ function renderChart(){
  drawBtns(); drawTable();
 }
 
-function calcTarget(){
- let reps=+targetReps.value;
- let rpe=+targetRPE.value;
- let base=getBasePercent(reps);
- let p=base-((10-rpe)*2*0.015);
- let weight = global1RM*p;
- let displayWeight = roundWeight(convertFromLbs(weight));
- targetOut.innerText=`Target: ${displayWeight} ${currentUnit}`;
+function calcTarget() {
+    if (!global1RM) {
+        alert("Calculate 1RM first");
+        return;
+    }
+
+    let reps = +document.getElementById("targetReps").value;
+    let mode = document.getElementById("targetMode").value;
+
+    if (!reps) {
+        alert("Enter reps");
+        return;
+    }
+
+    let weight;
+
+    // PERCENT MODE
+    if (mode === "percent") {
+        let pct = +document.getElementById("targetPercent").value;
+
+        if (!pct) {
+            alert("Enter training %");
+            return;
+        }
+        let repPercent = getBasePercent(reps);
+        let repMax = global1RM * repPercent;
+        weight = repMax * (pct / 100);
+        
+        targetMeta = {
+            reps,
+            pct,
+            repPercent
+        };
+    }
+
+    // RPE MODE
+    else {
+        let rpe = +document.getElementById("targetRPE").value;
+
+        let base = getBasePercent(reps);
+        let percent = base - ((10 - rpe) * 2 * 0.015);
+
+        weight = global1RM * percent;
+    }
+
+    targetWeight = weight;
+    let displayWeight = roundWeight(convertFromLbs(weight));
+
+    document.getElementById("targetOut").innerText =
+        `Target: ${displayWeight} ${currentUnit}`;
 }
 
 function calcBackoff(){
- let sets=+boSets.value, reps=+boReps.value, rpe=+boRPE.value;
- let dropPercent = +boDrop.value / 100;
+    let sets = +boSets.value;
+    let reps = +boReps.value;
+    let rpe = +boRPE.value;
+    let dropPercent = +boDrop.value / 100;
 
- let base=getBasePercent(reps);
- let p=base-((10-rpe)*2*0.015);
- let baseWeight=global1RM*p;
+    let mode = document.getElementById("targetMode")?.value || "rpe";
 
- let html="";
+    if (!sets) {
+        alert("Enter number of sets");
+        return;
+    }
 
- for(let i=1;i<=sets;i++){
-   let adjustedWeight = baseWeight * (1 - dropPercent*(i-1));
-   let displayWeight = roundWeight(convertFromLbs(adjustedWeight));
-   html+=`Set ${i}: ${displayWeight} ${currentUnit}<br>`;
- }
+    let html = "";
 
- boOut.innerHTML=html;
+    // ==========================
+    // METHOD 1: TARGET = PERCENTAGE
+    // ==========================
+    if (mode === "percent") {
+    
+        if (!targetWeight || !targetMeta) {
+            alert("Calculate Target Weight first");
+            return;
+        }
+    
+        if (!reps) {
+            alert("Enter back-off reps");
+            return;
+        }
+    
+        // rebuild anchor 1RM from target
+        let originalPercent = targetMeta.repPercent * (targetMeta.pct / 100);
+        let anchor1RM = targetWeight / originalPercent;
+    
+        // calculate new working percent from backoff reps + backoff RPE
+        let base = getBasePercent(reps);
+        let workingPercent = base - ((10 - rpe) * 2 * 0.015);
+    
+        // Set 1 weight
+        let baseWeight = anchor1RM * workingPercent;
+    
+        for (let i = 1; i <= sets; i++) {
+    
+            let adjustedWeight =
+                baseWeight * (1 - dropPercent * (i - 1));
+    
+            let displayWeight =
+                roundWeight(convertFromLbs(adjustedWeight));
+    
+            html +=
+                `Set ${i}: ${displayWeight} ${currentUnit}<br>`;
+        }
+    }
+
+    // ==========================
+    // METHOD 2: TARGET = RPE
+    // ==========================
+    else {
+
+        if (!global1RM || !reps) {
+            alert("Enter reps");
+            return;
+        }
+
+        let base = getBasePercent(reps);
+        let percent = base - ((10 - rpe) * 2 * 0.015);
+
+        let baseWeight = global1RM * percent;
+
+        for (let i = 1; i <= sets; i++) {
+            let adjustedPercent = percent - (dropPercent * (i - 1));
+            let adjustedWeight = global1RM * adjustedPercent;
+
+            let displayWeight = roundWeight(convertFromLbs(adjustedWeight));
+
+            html += `Set ${i}: ${displayWeight} ${currentUnit}<br>`;
+        }
+    }
+
+    boOut.innerHTML = html;
 }
 
 let prevUnit = "lb";
@@ -243,6 +375,37 @@ document.getElementById("unitToggle").addEventListener("change", function () {
 
     if (global1RM) calculate();
 });
+function toggleTargetMode() {
+    const mode = document.getElementById("targetMode").value;
+    const container = document.getElementById("targetModeInput");
+
+    if (mode === "percent") {
+        container.innerHTML = `
+            <input
+                id="targetPercent"
+                type="number"
+                placeholder="Training % (e.g. 80)"
+                min="1"
+                max="200"
+                style="width:100%;"
+            >
+        `;
+    } else {
+        container.innerHTML = `
+            <select id="targetRPE" style="width:100%;">
+                <option value="10">RPE 10</option>
+                <option value="9.5">9.5</option>
+                <option value="9">9</option>
+                <option value="8.5">8.5</option>
+                <option value="8">8</option>
+                <option value="7.5">7.5</option>
+                <option value="7">7</option>
+                <option value="6.5">6.5</option>
+                <option value="6">6</option>
+            </select>
+        `;
+    }
+}
 </script>
 
 <footer style="text-align:center; margin-top:40px; font-size:12px; opacity:0.6;">
