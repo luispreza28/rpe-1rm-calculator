@@ -3,10 +3,10 @@
   "short_name": "StrengthCalc",
   "description": "A powerful strength training calculator for estimating 1RM, RPE-based loads, and generating training sets.",
   "start_url": ".",
-  "scope": "/rpe-1rm-calculator/",
+  "scope": ".",
   "display": "standalone",
   "orientation": "portrait",
-  "id": "/rpe-1rm-calculator/",
+  "id": "rpe-1rm-calculator",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
